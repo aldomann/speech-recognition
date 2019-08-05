@@ -176,7 +176,7 @@ The structure of our tensor slices will be `(spectrogram, response)`, which we c
 ds
 ```
 
-Now, we will specify how we want batch observations from the dataset. We’re using `dataset_shuffle` since we want to shuffle observations from the dataset, otherwise it would follow the order of the `df` object. Then we use `dataset_repeat` in order to tell TensorFlow that we want to keep taking observations from the dataset even if all observations have already been used. And most importantly here, we use `dataset_padded_batch` to specify that we want batches of size 32, but they should be padded, ie. if some observation has a different size we pad it with zeroes. The padded shape is passed to `dataset_padded_batch` via the `padded_shapes` argument and we use `NULL` to state that this dimension doesn’t need to be padded.
+Now, we will specify how we want batch observations from the dataset. We're using `dataset_shuffle` since we want to shuffle observations from the dataset, otherwise it would follow the order of the `df` object. Then we use `dataset_repeat` in order to tell TensorFlow that we want to keep taking observations from the dataset even if all observations have already been used. And most importantly here, we use `dataset_padded_batch` to specify that we want batches of size 32, but they should be padded, ie. if some observation has a different size we pad it with zeroes. The padded shape is passed to `dataset_padded_batch` via the `padded_shapes` argument and we use `NULL` to state that this dimension doesn't need to be padded.
 
 ```{r}
 ds <- ds %>% 
@@ -191,7 +191,7 @@ ds <- ds %>%
   )
 ```
 
-This is our dataset specification, but we would need to rewrite all the code for the validation data, so it’s good practice to wrap this into a function of the data and other important parameters like `window_size_ms` and `window_stride_ms`. Below, we will define a function called `data_generator` that will create the generator depending on those inputs.
+This is our dataset specification, but we would need to rewrite all the code for the validation data, so it's good practice to wrap this into a function of the data and other important parameters like `window_size_ms` and `window_stride_ms`. Below, we will define a function called `data_generator` that will create the generator depending on those inputs.
 
 ```{r}
 data_generator <- function(df, batch_size, shuffle = TRUE, window_size_ms = 30, window_stride_ms = 10) {
@@ -246,7 +246,7 @@ data_generator <- function(df, batch_size, shuffle = TRUE, window_size_ms = 30, 
 }
 ```
 
-Now, we can define training and validation data generators. It’s worth noting that executing this won’t actually compute any spectrogram or read any file. It will only define in the TensorFlow graph how it should read and pre-process data.
+Now, we can define training and validation data generators. It's worth noting that executing this won't actually compute any spectrogram or read any file. It will only define in the TensorFlow graph how it should read and pre-process data.
 
 ```{r}
 set.seed(6)
@@ -290,7 +290,7 @@ Now that we know how we will feed our data we can focus on the model definition.
 
 We will build a convolutional neural network similar to what we have built here for the MNIST dataset.
 
-The input size is defined by the number of chunks and the FFT size. Like we explained earlier, they can be obtained from the window_size_ms and window_stride_ms used to generate the spectrogram.
+The input size is defined by the number of chunks and the FFT size. Like we explained earlier, they can be obtained from the `window_size_ms` and `window_stride_ms` used to generate the spectrogram.
 
 ```{r}
 window_size <- as.integer(16000 * window_size_ms / 1000)
@@ -325,7 +325,7 @@ model %>%
 
 We used 4 layers of convolutions combined with max pooling layers to extract features from the spectrogram images and 2 dense layers at the top. Our network is comparatively simple when compared to more advanced architectures like ResNet or DenseNet that perform very well on image recognition tasks.
 
-Now let’s compile our model. We will use categorical cross entropy as the loss function and use the Adadelta optimizer. It’s also here that we define that we will look at the accuracy metric during training.
+Now let's compile our model. We will use categorical cross entropy as the loss function and use the Adadelta optimizer. It's also here that we define that we will look at the accuracy metric during training.
 
 ```{r}
 model %>%
@@ -339,7 +339,7 @@ model %>%
 
 # Model fitting
 
-Now, we will fit our model. In Keras we can use TensorFlow Datasets as inputs to the fit_generator function and we will do it here.
+Now, we will fit our model. In Keras we can use TensorFlow Datasets as inputs to the `fit_generator` function and we will do it here.
 
 ```{r}
 model %>%
@@ -352,12 +352,12 @@ model %>%
   )
 ```
 
-The model’s accuracy is 89.05% (or 93.23% with 10 epochs). Let’s learn how to make predictions and take a look at the confusion matrix.
+The model's accuracy is 89.05% (or 93.23% with 10 epochs). Let's learn how to make predictions and take a look at the confusion matrix.
 
 
 # Making predictions
 
-We can use thepredict_generator function to make predictions on a new dataset. Let’s make predictions for our validation dataset. The predict_generator function needs a step argument which is the number of times the generator will be called.
+We can use the `predict_generator` function to make predictions on a new dataset. Let's make predictions for our validation dataset. The `predict_generator` function needs a step argument which is the number of times the generator will be called.
 
 We can calculate the number of steps by knowing the batch size, and the size of the validation dataset.
 
@@ -379,7 +379,7 @@ predictions <-
 str(predictions)
 ```
 
-This will output a matrix with 30 columns - one for each word and n_steps*batch_size number of rows. Note that it starts repeating the dataset at the end to create a full batch.
+This will output a matrix with 30 columns - one for each word and `n_steps * batch_size` number of rows. Note that it starts repeating the dataset at the end to create a full batch.
 
 ```{r}
 df_validation %>% head(1)
@@ -420,8 +420,8 @@ alluvial(
 )
 ```
 
-We can see from the diagram that the most relevant mistake our model makes is to classify “tree” as “three”. There are other common errors like classifying “go” as “no”, “up” as “off”. At 93% accuracy for 30 classes, and considering the errors we can say that this model is pretty reasonable.
+We can see from the diagram that the most relevant mistake our model makes is to classify "tree" as "three". There are other common errors like classifying "go" as "no", "up" as "off". At 93% accuracy for 30 classes, and considering the errors we can say that this model is pretty reasonable.
 
 The saved model occupies 25Mb of disk space, which is reasonable for a desktop but may not be on small devices. We could train a smaller model, with fewer layers, and see how much the performance decreases.
 
-In speech recognition tasks its also common to do some kind of data augmentation by mixing a background noise to the spoken audio, making it more useful for real applications where it’s common to have other irrelevant sounds happening in the environment.
+In speech recognition tasks its also common to do some kind of data augmentation by mixing a background noise to the spoken audio, making it more useful for real applications where it's common to have other irrelevant sounds happening in the environment.
