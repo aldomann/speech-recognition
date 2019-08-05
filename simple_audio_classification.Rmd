@@ -1,0 +1,94 @@
+---
+title: "Simple Audio Classification with Keras"
+author: "Alfredo Hernández"
+output: 
+  html_notebook: 
+    theme: cosmo
+    toc: yes
+---
+
+# Retrieve data 
+
+```{r}
+data_dir <- "data"
+file_path_raw <- paste(data_dir, "speech_commands_v0.01.tar.gz", sep = "/")
+files_dir <- paste(data_dir, "speech_commands_v0.01", sep = "/")
+
+# Create directory
+if (!dir.exists(data_dir)) {
+  dir.create(data_dir)
+}
+
+# Download data
+if (!file.exists(file_path_raw)) {
+  download.file(
+    url = "http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz",
+    destfile = file_path_raw
+  )
+}
+
+# Extract data
+if (!dir.exists(files_dir)) {
+  untar(file_path_raw, exdir = files_dir)
+}
+```
+
+
+# Load Keras
+
+```{r}
+reticulate::use_condaenv("tensorflow", conda = "~/.anaconda3/bin/conda")
+library(keras)
+```
+
+# Import data
+
+```{r include=FALSE}
+library(stringr)
+library(dplyr)
+```
+
+In this step we will list all audio .wav files into a tibble with 3 columns:
+
+- fname: the file name;
+- class: the label for each audio file;
+- class_id: a unique integer number starting from zero for each class - used to one-hot encode the classes.
+
+This will be useful to the next step when we will create a generator using the tfdatasets package.
+
+```{r}
+files <- fs::dir_ls(
+  path = "data/speech_commands_v0.01/",
+  recurse = TRUE,
+  glob = "*.wav"
+)
+
+files <- files[str_detect(files, "background_noise", negate = TRUE)]
+
+df <- tibble(
+  fname = files,
+  class = fname %>% 
+    stringr::str_extract("1/.*/") %>%
+    stringr::str_replace_all("1/", "") %>%
+    stringr::str_replace_all("/", ""),
+  class_id = class %>% 
+    as.factor() %>% 
+    as.integer() - 1L
+)
+```
+
+We can see an example of each different class:
+```{r}
+df %>%
+  group_by(class) %>%
+  slice(1)
+```
+
+
+# Generator
+
+We will now create our Dataset, which in the context of tfdatasets, adds operations to the TensorFlow graph in order to read and pre-process data. Since they are TensorFlow ops, they are executed in C++ and in parallel with model training.
+
+The generator we will create will be responsible for reading the audio files from disk, creating the spectrogram for each one and batching the outputs.
+
+Let’s start by creating the dataset from slices of the data.frame with audio file names and classes we just created.
