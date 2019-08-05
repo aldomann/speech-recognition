@@ -1,0 +1,133 @@
+---
+title: "Simple Audio Classification with Keras"
+subtitle: "Testing with own recorded audio"
+author: "Alfredo Hernández"
+output: 
+  html_notebook: 
+    theme: cosmo
+    toc: yes
+---
+
+# Process new OGG data
+
+```{r}
+test_raw_dir <- "data/test_raw/"
+test_wav_dir <- "data/test_wav/"
+
+files_test_raw <- fs::dir_ls(
+  path = test_raw_dir,
+  recurse = TRUE,
+  glob = "*.ogg"
+) %>% 
+  stringr::str_remove_all(test_raw_dir) %>% 
+  stringr::str_remove_all(".ogg")
+
+files_test_raw
+```
+
+```{r}
+for (file in files_test_raw) {
+  # I/O variables
+  input_file <- paste0(test_raw_dir, file, ".ogg")
+  output_file <- paste0(test_wav_dir, file, ".wav")
+  
+  # Check if converted file exists
+  if (!file.exists(output_file)) {
+    print(paste("File", input_file, "is being processed..."))
+    system(paste0("./process_audio.sh ", input_file, output_file, " 1"))
+  } else {
+    print(paste("File", output_file, "already exists."))
+  }
+}
+```
+
+
+# Test own data
+
+```{r}
+files_test <- fs::dir_ls(
+  path = test_wav_dir,
+  recurse = TRUE,
+  glob = "*.wav"
+)
+
+df_test <- tibble(
+  fname = files_test,
+  class = fname %>%
+    stringr::str_replace_all(test_wav_dir, "") %>%
+    stringr::str_replace_all(".wav", ""),
+  class_id = class %>%
+    as.factor() %>%
+    as.integer() - 1L
+)
+
+df_test
+```
+
+```{r}
+ds_test <- data_generator(
+  df_test,
+  batch_size = 3,
+  shuffle = FALSE,
+  window_size_ms = 30,
+  window_stride_ms = 10
+)
+
+ds_test
+```
+
+```{r}
+n_steps_test <- nrow(df_test) / 32 + 1
+```
+
+We can then use the `predict_generator` function:
+
+```{r}
+predictions_test <-
+  predict_generator(
+    model,
+    ds_test,
+    steps = n_steps_test
+  )
+```
+
+## Process prediction data
+
+```{r}
+# Create auxiliary classes data frame
+classes_df <- df %>%
+  group_by(class) %>%
+  slice(1) %>%
+  select(class, class_id)
+```
+
+
+```{r}
+predictions_test_df <- predictions_test %>%
+  t() %>%
+  as_tibble() %>%
+  # Create class_id column
+  tibble::rowid_to_column(var = "class_id") %>%
+  mutate(
+    class_id = class_id - 1
+  ) %>%
+  # Join auxiliary classes data frame
+  left_join(classes_df, by = "class_id") %>%
+  # Rename variables
+  dplyr::rename(bort = V1, buarns = V2, house = V3)
+```
+
+## Explore prediction
+
+```{r}
+predictions_test_df %>%
+  select(-class_id) %>%
+  # Melt data
+  reshape2::melt(id.var = "class", variable.name = "class_true") %>%
+  # Find maximum value
+  group_by(class_true) %>%
+  arrange(desc(value)) %>%
+  slice(1)
+```
+
+
